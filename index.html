@@ -1,572 +1,1067 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>대대손손 팝업 스토어</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Visualization & Content Choices:
         - Hero, Our Story, Ingredients, Pop-up Experience: Static HTML/Tailwind.
-        - Visitor Survey: HTML form. Visit date/time displayed as static text. Goal: Gather feedback. Method: HTML/Tailwind, JS for form handling. Interaction: Form input, data compiled into a JSON object (including static date/time), stored in localStorage. Submission ID is timestamp-based. Justification: Client-side data collection for GitHub Pages. Toast notifications for status.
-        - Download Button: Moved to footer, styled to be less prominent for regular users. Downloads all localStorage data as 'report.json'.
+        - Visitor Survey: HTML form. Visit date/time static. Goal: Gather feedback. Method: HTML/Tailwind, JS for form handling. Interaction: Form input, data compiled into a JSON object (including static date/time) and POSTed to a Google Apps Script URL. Submission ID is timestamp-based. Justification: Direct cloud storage of survey responses in Google Sheets. Toast notifications for submission status.
         - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
     <style>
-        body { font-family: 'Noto Sans KR', sans-serif; }
-        .brand-title { font-family: 'Gowun Dodum', serif; }
-        .section-title { font-family: 'Gowun Batang', serif; }
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 1rem;
-            border-radius: 0.375rem; /* rounded-md */
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
-            color: white;
-            z-index: 100;
-            opacity: 0;
-            transition: opacity 0.5s ease-in-out, visibility 0s linear 0.5s;
-            visibility: hidden;
+      body {
+        font-family: "Noto Sans KR", sans-serif;
+      }
+      .brand-title {
+        font-family: "Gowun Dodum", serif;
+      }
+      .section-title {
+        font-family: "Gowun Batang", serif;
+      }
+      .toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 1rem;
+        border-radius: 0.375rem; /* rounded-md */
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+        color: white;
+        z-index: 100;
+        opacity: 0;
+        transition: opacity 0.5s ease-in-out, visibility 0s linear 0.5s;
+        visibility: hidden;
+      }
+      .toast.show {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.5s ease-in-out;
+      }
+      .toast-success {
+        background-color: #10b981; /* green-500 */
+      }
+      .toast-error {
+        background-color: #ef4444; /* red-500 */
+      }
+      .toast-info {
+        background-color: #3b82f6; /* blue-500 */
+      }
+      .inline-text-input {
+        border: none;
+        border-bottom: 1px solid #9ca3af; /* stone-400 */
+        padding: 2px 4px;
+        margin-left: 4px;
+        background-color: transparent;
+        width: 150px; /* Adjust as needed */
+      }
+      .inline-text-input:focus {
+        outline: none;
+        border-bottom-color: #f59e0b; /* amber-500 */
+      }
+      .loader {
+        border: 4px solid #f3f3f3; /* Light grey */
+        border-top: 4px solid #ca8a04; /* amber-600 */
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        vertical-align: middle;
+      }
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
         }
-        .toast.show {
-            opacity: 1;
-            visibility: visible;
-            transition: opacity 0.5s ease-in-out;
+        100% {
+          transform: rotate(360deg);
         }
-        .toast-success { background-color: #10B981; /* green-500 */ }
-        .toast-error { background-color: #EF4444; /* red-500 */ }
-        .toast-info { background-color: #3B82F6; /* blue-500 */ }
-        .inline-text-input {
-            border: none;
-            border-bottom: 1px solid #9ca3af; /* stone-400 */
-            padding: 2px 4px;
-            margin-left: 4px;
-            background-color: transparent;
-            width: 150px; /* Adjust as needed */
-        }
-        .inline-text-input:focus {
-            outline: none;
-            border-bottom-color: #f59e0b; /* amber-500 */
-        }
+      }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
-</head>
-<body class="bg-amber-50 text-stone-700 antialiased">
-
+    <link
+      href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="bg-amber-50 text-stone-700 antialiased">
     <div id="toast-notification" class="toast">메시지</div>
 
     <header class="bg-white shadow-md sticky top-0 z-50">
-        <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
-                <div class="flex items-center">
-                    <a href="#home" class="brand-title text-2xl font-bold text-amber-700">代代孫孫 (대대손손)</a>
-                </div>
-                <nav class="hidden md:flex space-x-4">
-                    <a href="#story" class="text-stone-600 hover:text-amber-700 px-3 py-2 rounded-md text-sm font-medium">우리의 이야기</a>
-                    <a href="#ingredients" class="text-stone-600 hover:text-amber-700 px-3 py-2 rounded-md text-sm font-medium">주요 재료</a>
-                    <a href="#experience" class="text-stone-600 hover:text-amber-700 px-3 py-2 rounded-md text-sm font-medium">팝업 체험</a>
-                    <a href="#survey" class="text-stone-600 hover:text-amber-700 px-3 py-2 rounded-md text-sm font-medium">방문객 설문</a>
-                </nav>
-                <div class="md:hidden">
-                    <button id="mobile-menu-button" class="text-stone-600 hover:text-amber-700 focus:outline-none">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
+      <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          <div class="flex items-center">
+            <a
+              href="#home"
+              class="brand-title text-2xl font-bold text-amber-700"
+              >代代孫孫 (대대손손)</a
+            >
+          </div>
+          <nav class="hidden md:flex space-x-4">
+            <a
+              href="#story"
+              class="text-stone-600 hover:text-amber-700 px-3 py-2 rounded-md text-sm font-medium"
+              >우리의 이야기</a
+            >
+            <a
+              href="#ingredients"
+              class="text-stone-600 hover:text-amber-700 px-3 py-2 rounded-md text-sm font-medium"
+              >주요 재료</a
+            >
+            <a
+              href="#experience"
+              class="text-stone-600 hover:text-amber-700 px-3 py-2 rounded-md text-sm font-medium"
+              >팝업 체험</a
+            >
+            <a
+              href="#survey"
+              class="text-stone-600 hover:text-amber-700 px-3 py-2 rounded-md text-sm font-medium"
+              >방문객 설문</a
+            >
+          </nav>
+          <div class="md:hidden">
+            <button
+              id="mobile-menu-button"
+              class="text-stone-600 hover:text-amber-700 focus:outline-none"
+            >
+              <svg
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M4 6h16M4 12h16m-7 6h7"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
-        <div id="mobile-menu" class="md:hidden hidden bg-white shadow-lg">
-            <a href="#story" class="block text-stone-600 hover:bg-amber-100 hover:text-amber-700 px-3 py-2 rounded-md text-base font-medium">우리의 이야기</a>
-            <a href="#ingredients" class="block text-stone-600 hover:bg-amber-100 hover:text-amber-700 px-3 py-2 rounded-md text-base font-medium">주요 재료</a>
-            <a href="#experience" class="block text-stone-600 hover:bg-amber-100 hover:text-amber-700 px-3 py-2 rounded-md text-base font-medium">팝업 체험</a>
-            <a href="#survey" class="block text-stone-600 hover:bg-amber-100 hover:text-amber-700 px-3 py-2 rounded-md text-base font-medium">방문객 설문</a>
-        </div>
+      </div>
+      <div id="mobile-menu" class="md:hidden hidden bg-white shadow-lg">
+        <a
+          href="#story"
+          class="block text-stone-600 hover:bg-amber-100 hover:text-amber-700 px-3 py-2 rounded-md text-base font-medium"
+          >우리의 이야기</a
+        >
+        <a
+          href="#ingredients"
+          class="block text-stone-600 hover:bg-amber-100 hover:text-amber-700 px-3 py-2 rounded-md text-base font-medium"
+          >주요 재료</a
+        >
+        <a
+          href="#experience"
+          class="block text-stone-600 hover:bg-amber-100 hover:text-amber-700 px-3 py-2 rounded-md text-base font-medium"
+          >팝업 체험</a
+        >
+        <a
+          href="#survey"
+          class="block text-stone-600 hover:bg-amber-100 hover:text-amber-700 px-3 py-2 rounded-md text-base font-medium"
+          >방문객 설문</a
+        >
+      </div>
     </header>
 
     <main>
-        <section id="home" class="relative h-[60vh] min-h-[400px] bg-amber-100 flex items-center justify-center text-center p-6">
-            <div class="absolute inset-0 bg-black opacity-10"></div>
-            <div class="relative z-10">
-                <h1 class="brand-title text-5xl md:text-7xl font-bold text-amber-800 mb-4">代代孫孫</h1>
-                <p class="text-2xl md:text-4xl text-stone-700 font-medium tracking-wider">잇고, 지키고, 더하고</p>
-            </div>
-        </section>
+      <section
+        id="home"
+        class="relative h-[60vh] min-h-[400px] bg-amber-100 flex items-center justify-center text-center p-6"
+      >
+        <div class="absolute inset-0 bg-black opacity-10"></div>
+        <div class="relative z-10">
+          <h1
+            class="brand-title text-5xl md:text-7xl font-bold text-amber-800 mb-4"
+          >
+            代代孫孫
+          </h1>
+          <p
+            class="text-2xl md:text-4xl text-stone-700 font-medium tracking-wider"
+          >
+            잇고, 지키고, 더하고
+          </p>
+        </div>
+      </section>
 
-        <section id="story" class="py-16 px-4 sm:px-6 lg:px-8 bg-white">
-            <div class="container mx-auto max-w-3xl text-center">
-                <h2 class="section-title text-3xl font-bold text-amber-700 mb-8">우리의 이야기</h2>
-                <p class="text-lg text-stone-600 leading-relaxed mb-4">
-                    우리는 세대와 세대를 잇는 사람들입니다.
-                    시간의 풍화 속에서도 식문화의 뿌리를 지켜온 손길들이,
-                    이제는 그 위에 새로운 가치를 더합니다.
-                </p>
-                <p class="text-lg text-stone-600 leading-relaxed mb-4">
-                    쌀, 기름, 김. 한국의 식문화에 깊이 뿌리내린 재료들을
-                    장인 정신으로 지켜온 이들과 함께
-                    우리는 건강하고 품격 있는 식사의 가능성을 다시 씁니다.
-                </p>
-                <p class="text-lg text-stone-600 leading-relaxed">
-                    대를 잇는다는 건 겹겹의 시간, 다정한 기술,
-                    그리고 기꺼이 더딘 길을 감수한 마음을 담는 일.
-                    그 뿌리 위에서, 우리는 오늘의 식탁을 다시 만듭니다.
-                    시간을 넘어, 지역을 넘어, 세대를 넘어
-                    맛과 멋이 있는 식문화를 이어갑니다.
-                </p>
-            </div>
-        </section>
+      <section id="story" class="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+        <div class="container mx-auto max-w-3xl text-center">
+          <h2 class="section-title text-3xl font-bold text-amber-700 mb-8">
+            우리의 이야기
+          </h2>
+          <p class="text-lg text-stone-600 leading-relaxed mb-4">
+            우리는 세대와 세대를 잇는 사람들입니다. 시간의 풍화 속에서도
+            식문화의 뿌리를 지켜온 손길들이, 이제는 그 위에 새로운 가치를
+            더합니다.
+          </p>
+          <p class="text-lg text-stone-600 leading-relaxed mb-4">
+            쌀, 기름, 김. 한국의 식문화에 깊이 뿌리내린 재료들을 장인 정신으로
+            지켜온 이들과 함께 우리는 건강하고 품격 있는 식사의 가능성을 다시
+            씁니다.
+          </p>
+          <p class="text-lg text-stone-600 leading-relaxed">
+            대를 잇는다는 건 겹겹의 시간, 다정한 기술, 그리고 기꺼이 더딘 길을
+            감수한 마음을 담는 일. 그 뿌리 위에서, 우리는 오늘의 식탁을 다시
+            만듭니다. 시간을 넘어, 지역을 넘어, 세대를 넘어 맛과 멋이 있는
+            식문화를 이어갑니다.
+          </p>
+        </div>
+      </section>
 
-        <section id="ingredients" class="py-16 px-4 sm:px-6 lg:px-8 bg-amber-50">
-            <div class="container mx-auto">
-                <h2 class="section-title text-3xl font-bold text-amber-700 text-center mb-12">주요 재료</h2>
-                <div class="grid md:grid-cols-3 gap-8">
-                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-                        <span class="text-4xl mb-4 inline-block">🌾</span>
-                        <h3 class="text-2xl font-semibold text-stone-800 mb-2">쌀 (Grain)</h3>
-                        <p class="text-stone-600">한국 식문화의 근본이 되는 쌀. 정성으로 재배하여 본연의 맛과 영양을 지킵니다.</p>
-                    </div>
-                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-                        <span class="text-4xl mb-4 inline-block">💧</span>
-                        <h3 class="text-2xl font-semibold text-stone-800 mb-2">기름 (Oil)</h3>
-                        <p class="text-stone-600">전통 방식 그대로, 한 방울 한 방울에 장인의 기술과 시간을 담아낸 귀한 기름입니다.</p>
-                    </div>
-                    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-                        <span class="text-4xl mb-4 inline-block">🌊</span>
-                        <h3 class="text-2xl font-semibold text-stone-800 mb-2">김 (Seaweed)</h3>
-                        <p class="text-stone-600">바다의 결을 따라 자연 그대로의 맛과 향을 간직한, 우리 식탁에 빠질 수 없는 김입니다.</p>
-                    </div>
+      <section id="ingredients" class="py-16 px-4 sm:px-6 lg:px-8 bg-amber-50">
+        <div class="container mx-auto">
+          <h2
+            class="section-title text-3xl font-bold text-amber-700 text-center mb-12"
+          >
+            주요 재료
+          </h2>
+          <div class="grid md:grid-cols-3 gap-8">
+            <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+              <span class="text-4xl mb-4 inline-block">🌾</span>
+              <h3 class="text-2xl font-semibold text-stone-800 mb-2">
+                쌀 (Grain)
+              </h3>
+              <p class="text-stone-600">
+                한국 식문화의 근본이 되는 쌀. 정성으로 재배하여 본연의 맛과
+                영양을 지킵니다.
+              </p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+              <span class="text-4xl mb-4 inline-block">💧</span>
+              <h3 class="text-2xl font-semibold text-stone-800 mb-2">
+                기름 (Oil)
+              </h3>
+              <p class="text-stone-600">
+                전통 방식 그대로, 한 방울 한 방울에 장인의 기술과 시간을 담아낸
+                귀한 기름입니다.
+              </p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+              <span class="text-4xl mb-4 inline-block">🌊</span>
+              <h3 class="text-2xl font-semibold text-stone-800 mb-2">
+                김 (Seaweed)
+              </h3>
+              <p class="text-stone-600">
+                바다의 결을 따라 자연 그대로의 맛과 향을 간직한, 우리 식탁에
+                빠질 수 없는 김입니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="experience" class="py-16 px-4 sm:px-6 lg:px-8 bg-white">
+        <div class="container mx-auto max-w-3xl">
+          <h2
+            class="section-title text-3xl font-bold text-amber-700 text-center mb-12"
+          >
+            팝업 스토어 체험 프로그램
+          </h2>
+          <p class="text-center text-stone-600 mb-8">
+            '대대손손' 팝업 스토어에서는 다음과 같은 특별한 경험을 하실 수
+            있습니다. 각 프로그램은 저희 브랜드의 철학과 재료의 가치를 깊이 있게
+            전달하고자 마련되었습니다.
+          </p>
+          <div class="overflow-x-auto">
+            <table class="min-w-full bg-amber-50 shadow-md rounded-lg">
+              <thead class="bg-amber-200">
+                <tr>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-amber-700 uppercase tracking-wider"
+                  >
+                    시간
+                  </th>
+                  <th
+                    class="px-6 py-3 text-left text-xs font-medium text-amber-700 uppercase tracking-wider"
+                  >
+                    프로그램 내용
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-amber-200">
+                <tr>
+                  <td
+                    class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900"
+                  >
+                    2:00 - 2:15 PM
+                  </td>
+                  <td class="px-6 py-4 text-sm text-stone-600">
+                    <strong>Welcoming Taste (처음 만나는 맛):</strong> 자연에서
+                    온 재료로 만든 다과와 음료를 즐기며 전시를 자유롭게
+                    관람하세요.
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900"
+                  >
+                    2:15 - 2:40 PM
+                  </td>
+                  <td class="px-6 py-4 text-sm text-stone-600">
+                    <strong>The Story of Our Ingredients (재료 이야기):</strong>
+                    쌀, 기름, 김에 담긴 장인 정신과 세 브랜드의 이야기를
+                    소개합니다.
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900"
+                  >
+                    2:40 - 3:15 PM
+                  </td>
+                  <td class="px-6 py-4 text-sm text-stone-600">
+                    <strong
+                      >Main Table: tasting with heritage (주요리 시식):</strong
+                    >
+                    전통의 맛을 현대적으로 재해석한 특별한 시식 경험을
+                    제공합니다.
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900"
+                  >
+                    3:15 - 3:40 PM
+                  </td>
+                  <td class="px-6 py-4 text-sm text-stone-600">
+                    <strong>Slow Walk & Closing (여유로운 마무리):</strong>
+                    체험의 여운을 느끼며 전시를 둘러보고, 정성껏 준비한 작은
+                    선물을 받아가세요.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="survey" class="py-16 px-4 sm:px-6 lg:px-8 bg-amber-100">
+        <div class="container mx-auto max-w-2xl">
+          <h2
+            class="section-title text-3xl font-bold text-amber-700 text-center mb-8"
+          >
+            팝업 스토어 방문객 설문지
+          </h2>
+          <p class="text-center text-stone-600 mb-8">
+            대대손손 팝업 스토어에 방문해주셔서 진심으로 감사합니다. 고객님의
+            소중한 의견은 저희가 앞으로 더 나은 경험을 제공하는 데 큰 도움이
+            됩니다. 잠시 시간을 내어 설문에 참여해주시면 감사하겠습니다.
+          </p>
+          <form
+            id="surveyForm"
+            class="space-y-6 bg-white p-8 rounded-lg shadow-lg"
+          >
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >1. 방문 정보</label
+              >
+              <div class="mt-1 p-3 bg-stone-50 rounded-md">
+                <p class="text-sm text-stone-600">
+                  <span class="font-semibold">방문 날짜:</span>
+                  <span id="display_visit_date"
+                    >2025년 5월 24일 (팝업 당일)</span
+                  >
+                </p>
+                <p class="text-sm text-stone-600">
+                  <span class="font-semibold">방문 시간대:</span>
+                  <span id="display_visit_time"
+                    >팝업 운영 시간 (오후 2:00 - 오후 3:40)</span
+                  >
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >2. 성별</label
+              >
+              <div
+                class="mt-1 space-y-2 sm:flex sm:items-center sm:space-y-0 sm:space-x-4"
+              >
+                <div class="flex items-center">
+                  <input
+                    id="gender_male"
+                    name="gender"
+                    type="radio"
+                    value="male"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"
+                  />
+                  <label
+                    for="gender_male"
+                    class="ml-2 block text-sm text-stone-700"
+                    >남성</label
+                  >
                 </div>
-            </div>
-        </section>
-
-        <section id="experience" class="py-16 px-4 sm:px-6 lg:px-8 bg-white">
-            <div class="container mx-auto max-w-3xl">
-                <h2 class="section-title text-3xl font-bold text-amber-700 text-center mb-12">팝업 스토어 체험 프로그램</h2>
-                <p class="text-center text-stone-600 mb-8">
-                    '대대손손' 팝업 스토어에서는 다음과 같은 특별한 경험을 하실 수 있습니다. 각 프로그램은 저희 브랜드의 철학과 재료의 가치를 깊이 있게 전달하고자 마련되었습니다.
-                </p>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full bg-amber-50 shadow-md rounded-lg">
-                        <thead class="bg-amber-200">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-amber-700 uppercase tracking-wider">시간</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-amber-700 uppercase tracking-wider">프로그램 내용</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-amber-200">
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900">2:00 - 2:15 PM</td>
-                                <td class="px-6 py-4 text-sm text-stone-600"><strong>Welcoming Taste (처음 만나는 맛):</strong> 자연에서 온 재료로 만든 다과와 음료를 즐기며 전시를 자유롭게 관람하세요.</td>
-                            </tr>
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900">2:15 - 2:40 PM</td>
-                                <td class="px-6 py-4 text-sm text-stone-600"><strong>The Story of Our Ingredients (재료 이야기):</strong> 쌀, 기름, 김에 담긴 장인 정신과 세 브랜드의 이야기를 소개합니다.</td>
-                            </tr>
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900">2:40 - 3:15 PM</td>
-                                <td class="px-6 py-4 text-sm text-stone-600"><strong>Main Table: tasting with heritage (주요리 시식):</strong> 전통의 맛을 현대적으로 재해석한 특별한 시식 경험을 제공합니다.</td>
-                            </tr>
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900">3:15 - 3:40 PM</td>
-                                <td class="px-6 py-4 text-sm text-stone-600"><strong>Slow Walk & Closing (여유로운 마무리):</strong> 체험의 여운을 느끼며 전시를 둘러보고, 정성껏 준비한 작은 선물을 받아가세요.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="flex items-center">
+                  <input
+                    id="gender_female"
+                    name="gender"
+                    type="radio"
+                    value="female"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"
+                  />
+                  <label
+                    for="gender_female"
+                    class="ml-2 block text-sm text-stone-700"
+                    >여성</label
+                  >
                 </div>
+                <div class="flex items-center">
+                  <input
+                    id="gender_none"
+                    name="gender"
+                    type="radio"
+                    value="none"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"
+                  />
+                  <label
+                    for="gender_none"
+                    class="ml-2 block text-sm text-stone-700"
+                    >선택 안 함</label
+                  >
+                </div>
+              </div>
             </div>
-        </section>
 
-        <section id="survey" class="py-16 px-4 sm:px-6 lg:px-8 bg-amber-100">
-            <div class="container mx-auto max-w-2xl">
-                <h2 class="section-title text-3xl font-bold text-amber-700 text-center mb-8">팝업 스토어 방문객 설문지</h2>
-                <p class="text-center text-stone-600 mb-8">
-                    대대손손 팝업 스토어에 방문해주셔서 진심으로 감사합니다. 고객님의 소중한 의견은 저희가 앞으로 더 나은 경험을 제공하는 데 큰 도움이 됩니다. 잠시 시간을 내어 설문에 참여해주시면 감사하겠습니다.
-                </p>
-                <form id="surveyForm" class="space-y-6 bg-white p-8 rounded-lg shadow-lg">
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">1. 방문 정보</label>
-                        <div class="mt-1 p-3 bg-stone-50 rounded-md">
-                            <p class="text-sm text-stone-600"><span class="font-semibold">방문 날짜:</span> <span id="display_visit_date">2025년 5월 24일 (팝업 당일)</span></p>
-                            <p class="text-sm text-stone-600"><span class="font-semibold">방문 시간대:</span> <span id="display_visit_time">팝업 운영 시간 (오후 2:00 - 오후 3:40)</span></p>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">2. 성별</label>
-                        <div class="mt-1 space-y-2 sm:flex sm:items-center sm:space-y-0 sm:space-x-4">
-                            <div class="flex items-center">
-                                <input id="gender_male" name="gender" type="radio" value="male" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300">
-                                <label for="gender_male" class="ml-2 block text-sm text-stone-700">남성</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="gender_female" name="gender" type="radio" value="female" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300">
-                                <label for="gender_female" class="ml-2 block text-sm text-stone-700">여성</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="gender_none" name="gender" type="radio" value="none" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300">
-                                <label for="gender_none" class="ml-2 block text-sm text-stone-700">선택 안 함</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label for="age_group" class="block text-sm font-medium text-stone-700">3. 연령대</label>
-                        <select id="age_group" name="age_group" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md">
-                            <option value="">선택하세요</option>
-                            <option value="10s">10대</option>
-                            <option value="20s">20대</option>
-                            <option value="30s">30대</option>
-                            <option value="40s">40대</option>
-                            <option value="50s+">50대 이상</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">4. 오늘 팝업 스토어를 어떻게 알게 되셨나요? (중복 선택 가능)</label>
-                        <div class="mt-2 space-y-2">
-                            <div><input type="checkbox" name="discovery_channel" value="instagram" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">인스타그램</label></div>
-                            <div><input type="checkbox" name="discovery_channel" value="facebook" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">페이스북</label></div>
-                            <div><input type="checkbox" name="discovery_channel" value="blog_community" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">블로그/커뮤니티 (구체적으로: <input type="text" id="discovery_blog_detail" name="discovery_blog_detail" class="inline-text-input"></label>)</div>
-                            <div><input type="checkbox" name="discovery_channel" value="referral" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">지인 추천</label></div>
-                            <div><input type="checkbox" name="discovery_channel" value="walkby" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">우연히 방문</label></div>
-                            <div><input type="checkbox" name="discovery_channel" value="other" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">기타 (구체적으로: <input type="text" id="discovery_other_detail" name="discovery_other_detail" class="inline-text-input"></label>)</div>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">5. 팝업 스토어의 첫인상은 어떠셨나요?</label>
-                        <div class="mt-1 space-y-2 sm:flex sm:items-center sm:space-y-0 sm:space-x-4">
-                            <div><input type="radio" name="first_impression" value="very_good" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"><label class="ml-2 text-stone-700">매우 좋음</label></div>
-                            <div><input type="radio" name="first_impression" value="good" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"><label class="ml-2 text-stone-700">좋음</label></div>
-                            <div><input type="radio" name="first_impression" value="neutral" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"><label class="ml-2 text-stone-700">보통</label></div>
-                            <div><input type="radio" name="first_impression" value="bad" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"><label class="ml-2 text-stone-700">별로</label></div>
-                            <div><input type="radio" name="first_impression" value="very_bad" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"><label class="ml-2 text-stone-700">매우 안 좋음</label></div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">6. 팝업 스토어의 어떤 점이 가장 마음에 드셨나요? (중복 선택 가능)</label>
-                        <div class="mt-2 space-y-2">
-                            <div><input type="checkbox" name="favorite_point" value="product" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">제품 (쌀, 기름, 김 등)</label></div>
-                            <div><input type="checkbox" name="favorite_point" value="story_concept" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">브랜드 스토리 및 컨셉</label></div>
-                            <div><input type="checkbox" name="favorite_point" value="design_atmosphere" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">공간 디자인 및 분위기</label></div>
-                            <div><input type="checkbox" name="favorite_point" value="tasting_experience" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">시식 경험</label></div>
-                            <div><input type="checkbox" name="favorite_point" value="staff_kindness" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">직원들의 친절함</label></div>
-                            <div><input type="checkbox" name="favorite_point" value="event_program" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">이벤트 및 프로그램</label></div>
-                            <div><input type="checkbox" name="favorite_point" value="other" class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"> <label class="ml-2 text-stone-700">기타 (구체적으로: <input type="text" id="favorite_point_other_detail" name="favorite_point_other_detail" class="inline-text-input"></label>)</div>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">7. 오늘 경험하신 프로그램에 대해 평가해주세요.</label>
-                        <div class="mt-2 space-y-4">
-                            <div>
-                                <p class="text-sm text-stone-600 mb-1">Welcoming Taste (처음 만나는 맛)</p>
-                                <select name="program_welcoming_taste" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md">
-                                    <option value="">선택</option><option value="very_satisfied">매우 만족</option><option value="satisfied">만족</option><option value="neutral">보통</option><option value="dissatisfied">불만족</option><option value="very_dissatisfied">매우 불만족</option><option value="not_experienced">경험 안 함</option>
-                                </select>
-                            </div>
-                            <div>
-                                <p class="text-sm text-stone-600 mb-1">The Story of Our Ingredients (재료 이야기)</p>
-                                <select name="program_story_ingredients" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md">
-                                    <option value="">선택</option><option value="very_satisfied">매우 만족</option><option value="satisfied">만족</option><option value="neutral">보통</option><option value="dissatisfied">불만족</option><option value="very_dissatisfied">매우 불만족</option><option value="not_experienced">경험 안 함</option>
-                                </select>
-                            </div>
-                            <div>
-                                <p class="text-sm text-stone-600 mb-1">Main Table: tasting with heritage (주요리 시식)</p>
-                                <select name="program_main_table" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md">
-                                    <option value="">선택</option><option value="very_satisfied">매우 만족</option><option value="satisfied">만족</option><option value="neutral">보통</option><option value="dissatisfied">불만족</option><option value="very_dissatisfied">매우 불만족</option><option value="not_experienced">경험 안 함</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">8. 저희가 선보인 제품(쌀, 기름, 김)에 대한 전반적인 만족도는 어떠셨나요?</label>
-                        <select name="product_satisfaction" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md">
-                            <option value="">선택하세요</option>
-                            <option value="very_satisfied">매우 만족</option>
-                            <option value="satisfied">만족</option>
-                            <option value="neutral">보통</option>
-                            <option value="dissatisfied">불만족</option>
-                            <option value="very_dissatisfied">매우 불만족</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">9. 제품 구매 의향이 있으신가요?</label>
-                        <select name="purchase_intent" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md">
-                            <option value="">선택하세요</option>
-                            <option value="very_likely">매우 그렇다</option>
-                            <option value="likely">그렇다</option>
-                            <option value="neutral">보통이다</option>
-                            <option value="unlikely">그렇지 않다</option>
-                            <option value="very_unlikely">전혀 그렇지 않다</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">10. 팝업 스토어의 '잇고, 지키고, 더하고'라는 주제와 '대대손손'이라는 컨셉이 잘 전달되었다고 생각하시나요?</label>
-                        <select name="concept_delivery" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md">
-                            <option value="">선택하세요</option>
-                            <option value="very_well">매우 잘 전달됨</option>
-                            <option value="well">잘 전달됨</option>
-                            <option value="neutral">보통</option>
-                            <option value="not_well">잘 전달되지 않음</option>
-                            <option value="not_at_all">전혀 전달되지 않음</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-stone-700">11. 팝업 스토어 운영 기간에 대해 어떻게 생각하시나요?</label>
-                        <select name="duration_feedback" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md">
-                            <option value="">선택하세요</option>
-                            <option value="appropriate">적절하다</option>
-                            <option value="longer">더 길었으면 좋겠다</option>
-                            <option value="shorter">더 짧았으면 좋겠다</option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="feedback_text" class="block text-sm font-medium text-stone-700">12. 팝업 스토어에서 개선되었으면 하는 점이나 좋았던 점이 있다면 자유롭게 말씀해주세요.</label>
-                        <textarea id="feedback_text" name="feedback_text" rows="4" class="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"></textarea>
-                    </div>
-
-                    <div class="pt-4">
-                        <p class="text-sm text-stone-600 mb-2">**개인 정보 수집 및 활용 동의**</p>
-                        <p class="text-xs text-stone-500 mb-1">수집된 정보는 서비스 개선 및 마케팅 자료로 활용될 수 있으며, 개인 정보는 안전하게 보호됩니다.</p>
-                        <p class="text-xs text-stone-500 mb-4">선물 발송을 위해 개인 정보(이름, 연락처)를 수집할 수 있습니다. 원치 않으시면 해당 항목은 비워두셔도 괜찮습니다.</p>
-                        
-                        <div class="space-y-2">
-                            <div>
-                                <label for="survey_name" class="block text-sm font-medium text-stone-700">성함 (선택 사항)</label>
-                                <input type="text" name="survey_name" id="survey_name" class="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm">
-                            </div>
-                            <div>
-                                <label for="survey_contact" class="block text-sm font-medium text-stone-700">연락처 (선택 사항)</label>
-                                <input type="text" name="survey_contact" id="survey_contact" class="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="pt-5">
-                        <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">
-                            설문 제출
-                        </button>
-                    </div>
-                </form>
+            <div>
+              <label
+                for="age_group"
+                class="block text-sm font-medium text-stone-700"
+                >3. 연령대</label
+              >
+              <select
+                id="age_group"
+                name="age_group"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md"
+              >
+                <option value="">선택하세요</option>
+                <option value="10s">10대</option>
+                <option value="20s">20대</option>
+                <option value="30s">30대</option>
+                <option value="40s">40대</option>
+                <option value="50s+">50대 이상</option>
+              </select>
             </div>
-        </section>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >4. 오늘 팝업 스토어를 어떻게 알게 되셨나요? (중복 선택
+                가능)</label
+              >
+              <div class="mt-2 space-y-2">
+                <div>
+                  <input
+                    type="checkbox"
+                    name="discovery_channel"
+                    value="instagram"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700">인스타그램</label>
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="discovery_channel"
+                    value="facebook"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700">페이스북</label>
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="discovery_channel"
+                    value="blog_community"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700"
+                    >블로그/커뮤니티 (구체적으로:
+                    <input
+                      type="text"
+                      id="discovery_blog_detail"
+                      name="discovery_blog_detail_text"
+                      class="inline-text-input" /></label
+                  >)
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="discovery_channel"
+                    value="referral"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700">지인 추천</label>
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="discovery_channel"
+                    value="walkby"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700">우연히 방문</label>
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="discovery_channel"
+                    value="other"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700"
+                    >기타 (구체적으로:
+                    <input
+                      type="text"
+                      id="discovery_other_detail"
+                      name="discovery_other_detail_text"
+                      class="inline-text-input" /></label
+                  >)
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >5. 팝업 스토어의 첫인상은 어떠셨나요?</label
+              >
+              <div
+                class="mt-1 space-y-2 sm:flex sm:items-center sm:space-y-0 sm:space-x-4"
+              >
+                <div>
+                  <input
+                    type="radio"
+                    name="first_impression"
+                    value="very_good"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"
+                  /><label class="ml-2 text-stone-700">매우 좋음</label>
+                </div>
+                <div>
+                  <input
+                    type="radio"
+                    name="first_impression"
+                    value="good"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"
+                  /><label class="ml-2 text-stone-700">좋음</label>
+                </div>
+                <div>
+                  <input
+                    type="radio"
+                    name="first_impression"
+                    value="neutral"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"
+                  /><label class="ml-2 text-stone-700">보통</label>
+                </div>
+                <div>
+                  <input
+                    type="radio"
+                    name="first_impression"
+                    value="bad"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"
+                  /><label class="ml-2 text-stone-700">별로</label>
+                </div>
+                <div>
+                  <input
+                    type="radio"
+                    name="first_impression"
+                    value="very_bad"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300"
+                  /><label class="ml-2 text-stone-700">매우 안 좋음</label>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >6. 팝업 스토어의 어떤 점이 가장 마음에 드셨나요? (중복 선택
+                가능)</label
+              >
+              <div class="mt-2 space-y-2">
+                <div>
+                  <input
+                    type="checkbox"
+                    name="favorite_point"
+                    value="product"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700"
+                    >제품 (쌀, 기름, 김 등)</label
+                  >
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="favorite_point"
+                    value="story_concept"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700"
+                    >브랜드 스토리 및 컨셉</label
+                  >
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="favorite_point"
+                    value="design_atmosphere"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700"
+                    >공간 디자인 및 분위기</label
+                  >
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="favorite_point"
+                    value="tasting_experience"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700">시식 경험</label>
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="favorite_point"
+                    value="staff_kindness"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700">직원들의 친절함</label>
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="favorite_point"
+                    value="event_program"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700">이벤트 및 프로그램</label>
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    name="favorite_point"
+                    value="other"
+                    class="focus:ring-amber-500 h-4 w-4 text-amber-600 border-stone-300 rounded"
+                  />
+                  <label class="ml-2 text-stone-700"
+                    >기타 (구체적으로:
+                    <input
+                      type="text"
+                      id="favorite_point_other_detail"
+                      name="favorite_point_other_detail_text"
+                      class="inline-text-input" /></label
+                  >)
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >7. 오늘 경험하신 프로그램에 대해 평가해주세요.</label
+              >
+              <div class="mt-2 space-y-4">
+                <div>
+                  <p class="text-sm text-stone-600 mb-1">
+                    Welcoming Taste (처음 만나는 맛)
+                  </p>
+                  <select
+                    name="program_welcoming_taste"
+                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md"
+                  >
+                    <option value="">선택</option>
+                    <option value="very_satisfied">매우 만족</option>
+                    <option value="satisfied">만족</option>
+                    <option value="neutral">보통</option>
+                    <option value="dissatisfied">불만족</option>
+                    <option value="very_dissatisfied">매우 불만족</option>
+                    <option value="not_experienced">경험 안 함</option>
+                  </select>
+                </div>
+                <div>
+                  <p class="text-sm text-stone-600 mb-1">
+                    The Story of Our Ingredients (재료 이야기)
+                  </p>
+                  <select
+                    name="program_story_ingredients"
+                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md"
+                  >
+                    <option value="">선택</option>
+                    <option value="very_satisfied">매우 만족</option>
+                    <option value="satisfied">만족</option>
+                    <option value="neutral">보통</option>
+                    <option value="dissatisfied">불만족</option>
+                    <option value="very_dissatisfied">매우 불만족</option>
+                    <option value="not_experienced">경험 안 함</option>
+                  </select>
+                </div>
+                <div>
+                  <p class="text-sm text-stone-600 mb-1">
+                    Main Table: tasting with heritage (주요리 시식)
+                  </p>
+                  <select
+                    name="program_main_table"
+                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md"
+                  >
+                    <option value="">선택</option>
+                    <option value="very_satisfied">매우 만족</option>
+                    <option value="satisfied">만족</option>
+                    <option value="neutral">보통</option>
+                    <option value="dissatisfied">불만족</option>
+                    <option value="very_dissatisfied">매우 불만족</option>
+                    <option value="not_experienced">경험 안 함</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >8. 저희가 선보인 제품(쌀, 기름, 김)에 대한 전반적인 만족도는
+                어떠셨나요?</label
+              >
+              <select
+                name="product_satisfaction"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md"
+              >
+                <option value="">선택하세요</option>
+                <option value="very_satisfied">매우 만족</option>
+                <option value="satisfied">만족</option>
+                <option value="neutral">보통</option>
+                <option value="dissatisfied">불만족</option>
+                <option value="very_dissatisfied">매우 불만족</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >9. 제품 구매 의향이 있으신가요?</label
+              >
+              <select
+                name="purchase_intent"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md"
+              >
+                <option value="">선택하세요</option>
+                <option value="very_likely">매우 그렇다</option>
+                <option value="likely">그렇다</option>
+                <option value="neutral">보통이다</option>
+                <option value="unlikely">그렇지 않다</option>
+                <option value="very_unlikely">전혀 그렇지 않다</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >10. 팝업 스토어의 '잇고, 지키고, 더하고'라는 주제와
+                '대대손손'이라는 컨셉이 잘 전달되었다고 생각하시나요?</label
+              >
+              <select
+                name="concept_delivery"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md"
+              >
+                <option value="">선택하세요</option>
+                <option value="very_well">매우 잘 전달됨</option>
+                <option value="well">잘 전달됨</option>
+                <option value="neutral">보통</option>
+                <option value="not_well">잘 전달되지 않음</option>
+                <option value="not_at_all">전혀 전달되지 않음</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-stone-700"
+                >11. 팝업 스토어 운영 기간에 대해 어떻게 생각하시나요?</label
+              >
+              <select
+                name="duration_feedback"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-stone-300 focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm rounded-md"
+              >
+                <option value="">선택하세요</option>
+                <option value="appropriate">적절하다</option>
+                <option value="longer">더 길었으면 좋겠다</option>
+                <option value="shorter">더 짧았으면 좋겠다</option>
+              </select>
+            </div>
+
+            <div>
+              <label
+                for="feedback_text"
+                class="block text-sm font-medium text-stone-700"
+                >12. 팝업 스토어에서 개선되었으면 하는 점이나 좋았던 점이 있다면
+                자유롭게 말씀해주세요.</label
+              >
+              <textarea
+                id="feedback_text"
+                name="feedback_text"
+                rows="4"
+                class="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"
+              ></textarea>
+            </div>
+
+            <div class="pt-4">
+              <p class="text-sm text-stone-600 mb-2">
+                **개인 정보 수집 및 활용 동의**
+              </p>
+              <p class="text-xs text-stone-500 mb-1">
+                수집된 정보는 서비스 개선 및 마케팅 자료로 활용될 수 있으며,
+                개인 정보는 안전하게 보호됩니다.
+              </p>
+              <p class="text-xs text-stone-500 mb-4">
+                선물 발송을 위해 개인 정보(이름, 연락처)를 수집할 수 있습니다.
+                원치 않으시면 해당 항목은 비워두셔도 괜찮습니다.
+              </p>
+
+              <div class="space-y-2">
+                <div>
+                  <label
+                    for="survey_name"
+                    class="block text-sm font-medium text-stone-700"
+                    >성함 (선택 사항)</label
+                  >
+                  <input
+                    type="text"
+                    name="survey_name"
+                    id="survey_name"
+                    class="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label
+                    for="survey_contact"
+                    class="block text-sm font-medium text-stone-700"
+                    >연락처 (선택 사항)</label
+                  >
+                  <input
+                    type="text"
+                    name="survey_contact"
+                    id="survey_contact"
+                    class="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-5">
+              <button
+                type="submit"
+                id="submitButton"
+                class="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+              >
+                <span class="button-text">설문 제출</span>
+                <span id="submitLoader" class="loader hidden"></span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
     </main>
 
     <footer class="bg-stone-800 text-amber-50 py-8">
-        <div class="container mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-            <div class="text-left">
-                <p class="brand-title text-xl mb-2">代代孫孫</p>
-                <p class="text-xs mb-1">장소: 서울시 강남구 삼성동 (상세 주소 또는 랜드마크)</p>
-                <p class="text-xs mb-1">운영 기간: (팝업 스토어 운영 기간을 여기에 명시)</p>
-                <p class="text-xs">문의: (문의처 또는 담당자 연락처)</p>
-            </div>
-            <div class="text-right">
-                 <button type="button" id="downloadAllButton" class="px-3 py-1 border border-amber-600 rounded-md shadow-sm text-xs font-medium text-amber-100 bg-stone-700 hover:bg-stone-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:ring-offset-stone-800">
-                    전체 응답 다운로드
-                </button>
-                <p class="text-xs mt-2">&copy; 2025 대대손손. All Rights Reserved.</p>
-            </div>
+      <div
+        class="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center text-center md:text-left"
+      >
+        <div class="mb-4 md:mb-0">
+          <p class="brand-title text-xl mb-2">代代孫孫</p>
+          <p class="text-xs mb-1">
+            장소: 서울시 강남구 삼성동 (상세 주소 또는 랜드마크)
+          </p>
+          <p class="text-xs mb-1">
+            운영 기간: (팝업 스토어 운영 기간을 여기에 명시)
+          </p>
+          <p class="text-xs">문의: (문의처 또는 담당자 연락처)</p>
         </div>
+        <div class="text-center md:text-right">
+          <p class="text-xs mt-2">&copy; 2025 대대손손. All Rights Reserved.</p>
+        </div>
+      </div>
     </footer>
 
     <script>
-        const LOCAL_STORAGE_KEY = 'daedaesonson_survey_responses';
-        const FIXED_VISIT_DATE = "2025년 5월 24일 (팝업 당일)"; // 고정된 방문 날짜
-        const FIXED_VISIT_TIME = "팝업 운영 시간 (오후 2:00 - 오후 3:40)"; // 고정된 방문 시간
+      const FIXED_VISIT_DATE = "2025년 5월 24일 (팝업 당일)";
+      const FIXED_VISIT_TIME = "팝업 운영 시간 (오후 2:00 - 오후 3:40)";
+      const GOOGLE_SCRIPT_URL =
+        "https://script.google.com/macros/s/AKfycbyoL-MGN4CB_eijPCowZwptpPHtzUrC05Ej-0HiZLrH6KCZ2QCGquWU6-H5UAGWG25p/exec";
 
-        // 페이지 로드 시 고정된 날짜와 시간 표시
-        document.addEventListener('DOMContentLoaded', () => {
-            const displayVisitDateEl = document.getElementById('display_visit_date');
-            const displayVisitTimeEl = document.getElementById('display_visit_time');
-            if (displayVisitDateEl) displayVisitDateEl.textContent = FIXED_VISIT_DATE;
-            if (displayVisitTimeEl) displayVisitTimeEl.textContent = FIXED_VISIT_TIME;
+      document.addEventListener("DOMContentLoaded", () => {
+        const displayVisitDateEl =
+          document.getElementById("display_visit_date");
+        const displayVisitTimeEl =
+          document.getElementById("display_visit_time");
+        if (displayVisitDateEl)
+          displayVisitDateEl.textContent = FIXED_VISIT_DATE;
+        if (displayVisitTimeEl)
+          displayVisitTimeEl.textContent = FIXED_VISIT_TIME;
+      });
+
+      const menuButton = document.getElementById("mobile-menu-button");
+      const mobileMenu = document.getElementById("mobile-menu");
+      if (menuButton && mobileMenu) {
+        menuButton.addEventListener("click", () => {
+          mobileMenu.classList.toggle("hidden");
         });
+      }
 
-
-        // Mobile menu toggle
-        const menuButton = document.getElementById('mobile-menu-button');
-        const mobileMenu = document.getElementById('mobile-menu');
-        if (menuButton && mobileMenu) {
-            menuButton.addEventListener('click', () => {
-                mobileMenu.classList.toggle('hidden');
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener("click", function (e) {
+          e.preventDefault();
+          const targetId = this.getAttribute("href");
+          const targetElement = document.querySelector(targetId);
+          if (targetElement) {
+            targetElement.scrollIntoView({
+              behavior: "smooth",
             });
+            if (mobileMenu && !mobileMenu.classList.contains("hidden")) {
+              mobileMenu.classList.add("hidden");
+            }
+          }
+        });
+      });
+
+      function displayToast(message, type = "info") {
+        const toast = document.getElementById("toast-notification");
+        if (!toast) return;
+        toast.textContent = message;
+        toast.className = "toast";
+        toast.classList.add("show");
+        if (type === "success") {
+          toast.classList.add("toast-success");
+        } else if (type === "error") {
+          toast.classList.add("toast-error");
+        } else {
+          toast.classList.add("toast-info");
         }
+        setTimeout(() => {
+          toast.classList.remove("show");
+        }, 3000);
+      }
 
-        // Smooth scroll for navigation links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const targetId = this.getAttribute('href');
-                const targetElement = document.querySelector(targetId);
-                if (targetElement) {
-                    targetElement.scrollIntoView({
-                        behavior: 'smooth'
-                    });
-                    if (mobileMenu && !mobileMenu.classList.contains('hidden')) {
-                        mobileMenu.classList.add('hidden');
-                    }
-                }
-            });
-        });
-        
-        // Toast notification function
-        function displayToast(message, type = "info") {
-            const toast = document.getElementById('toast-notification');
-            if (!toast) return;
+      const surveyForm = document.getElementById("surveyForm");
+      const submitButton = document.getElementById("submitButton");
+      const submitLoader = document.getElementById("submitLoader");
+      const submitButtonText = submitButton.querySelector(".button-text");
 
-            toast.textContent = message;
-            toast.className = 'toast'; 
-            toast.classList.add('show');
+      if (surveyForm) {
+        surveyForm.addEventListener("submit", async function (event) {
+          event.preventDefault();
+          if (
+            GOOGLE_SCRIPT_URL === "YOUR_APPS_SCRIPT_WEB_APP_URL_PLACEHOLDER" ||
+            !GOOGLE_SCRIPT_URL
+          ) {
+            displayToast(
+              "오류: Google Apps Script URL이 설정되지 않았습니다.",
+              "error"
+            );
+            console.error("Google Apps Script URL is not set.");
+            return;
+          }
 
-            if (type === "success") {
-                toast.classList.add('toast-success');
-            } else if (type === "error") {
-                toast.classList.add('toast-error');
+          if (submitButton.disabled) return;
+
+          submitButton.disabled = true;
+          submitLoader.classList.remove("hidden");
+          if (submitButtonText) submitButtonText.textContent = "제출 중...";
+
+          const formData = new FormData(surveyForm);
+          const dataToSubmit = {
+            submissionId: `survey_${new Date().getFullYear()}${(
+              "0" +
+              (new Date().getMonth() + 1)
+            ).slice(-2)}${("0" + new Date().getDate()).slice(-2)}_${(
+              "0" + new Date().getHours()
+            ).slice(-2)}${("0" + new Date().getMinutes()).slice(-2)}${(
+              "0" + new Date().getSeconds()
+            ).slice(-2)}`,
+            submissionTime: new Date().toISOString(),
+            visit_date: FIXED_VISIT_DATE,
+            visit_time: FIXED_VISIT_TIME,
+          };
+
+          const discoveryChannels = [];
+          document
+            .querySelectorAll('input[name="discovery_channel"]:checked')
+            .forEach((cb) => discoveryChannels.push(cb.value));
+          dataToSubmit.discovery_channel_combined =
+            discoveryChannels.join(", ");
+          dataToSubmit.discovery_blog_detail =
+            surveyForm.elements["discovery_blog_detail_text"].value || "";
+          dataToSubmit.discovery_other_detail =
+            surveyForm.elements["discovery_other_detail_text"].value || "";
+
+          const favoritePoints = [];
+          document
+            .querySelectorAll('input[name="favorite_point"]:checked')
+            .forEach((cb) => favoritePoints.push(cb.value));
+          dataToSubmit.favorite_point_combined = favoritePoints.join(", ");
+          dataToSubmit.favorite_point_other_detail =
+            surveyForm.elements["favorite_point_other_detail_text"].value || "";
+
+          const formFields = [
+            "gender",
+            "age_group",
+            "first_impression",
+            "program_welcoming_taste",
+            "program_story_ingredients",
+            "program_main_table",
+            "product_satisfaction",
+            "purchase_intent",
+            "concept_delivery",
+            "duration_feedback",
+            "feedback_text",
+            "survey_name",
+            "survey_contact",
+          ];
+
+          formFields.forEach((fieldName) => {
+            const element = surveyForm.elements[fieldName];
+            if (element) {
+              if (element.type === "radio") {
+                const checkedRadio = surveyForm.querySelector(
+                  `input[name="${fieldName}"]:checked`
+                );
+                dataToSubmit[fieldName] = checkedRadio
+                  ? checkedRadio.value
+                  : "";
+              } else {
+                dataToSubmit[fieldName] = element.value || "";
+              }
             } else {
-                toast.classList.add('toast-info');
+              dataToSubmit[fieldName] = "";
+            }
+          });
+
+          if (!discoveryChannels.includes("blog_community"))
+            dataToSubmit.discovery_blog_detail = "";
+          if (!discoveryChannels.includes("other"))
+            dataToSubmit.discovery_other_detail = "";
+          if (!favoritePoints.includes("other"))
+            dataToSubmit.favorite_point_other_detail = "";
+
+          try {
+            const scriptFormData = new FormData();
+            for (const key in dataToSubmit) {
+              scriptFormData.append(key, dataToSubmit[key]);
             }
 
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
-        }
-
-        // Function to get all responses from localStorage
-        function getStoredResponses() {
-            const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-            return storedData ? JSON.parse(storedData) : [];
-        }
-
-        // Function to save responses to localStorage
-        function saveResponses(responses) {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(responses));
-        }
-
-        // Form submission handler
-        const surveyForm = document.getElementById('surveyForm');
-        if (surveyForm) {
-            surveyForm.addEventListener('submit', function(event) {
-                event.preventDefault();
-
-                const formData = new FormData(surveyForm);
-                const currentResponse = {};
-                const now = new Date();
-                const pad = (num) => ('0' + num).slice(-2);
-                const submissionId = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-                
-                currentResponse.submissionId = `survey_${submissionId}`;
-                currentResponse.submissionTime = now.toISOString();
-                currentResponse.visit_date = FIXED_VISIT_DATE; // 고정값 사용
-                currentResponse.visit_time = FIXED_VISIT_TIME; // 고정값 사용
-
-
-                const orderedKeys = [
-                    // 'visit_date' and 'visit_time' are now added directly
-                    'gender', 'age_group', 
-                    'discovery_channel', 'discovery_blog_detail', 'discovery_other_detail',
-                    'first_impression', 'favorite_point', 'favorite_point_other_detail',
-                    'program_welcoming_taste', 'program_story_ingredients', 'program_main_table',
-                    'product_satisfaction', 'purchase_intent', 'concept_delivery', 
-                    'duration_feedback', 'feedback_text', 'survey_name', 'survey_contact'
-                ];
-                
-                const tempSurveyData = {};
-
-                for (let [key, value] of formData.entries()) {
-                    if (tempSurveyData[key]) {
-                        if (!Array.isArray(tempSurveyData[key])) {
-                            tempSurveyData[key] = [tempSurveyData[key]];
-                        }
-                        tempSurveyData[key].push(value);
-                    } else {
-                        tempSurveyData[key] = value;
-                    }
-                }
-                
-                // Reconstruct currentResponse in order, starting with predefined ones
-                const finalResponse = {
-                    submissionId: currentResponse.submissionId,
-                    submissionTime: currentResponse.submissionTime,
-                    visit_date: currentResponse.visit_date,
-                    visit_time: currentResponse.visit_time
-                };
-
-                orderedKeys.forEach(key => {
-                    if (tempSurveyData.hasOwnProperty(key)) {
-                        if (key === 'discovery_channel' || key === 'favorite_point') {
-                             finalResponse[key] = Array.isArray(tempSurveyData[key]) ? tempSurveyData[key] : [tempSurveyData[key]];
-                        } else {
-                            finalResponse[key] = tempSurveyData[key];
-                        }
-                    }
-                });
-                
-                if (finalResponse.discovery_channel && !finalResponse.discovery_channel.includes('blog_community')) {
-                    delete finalResponse.discovery_blog_detail;
-                } else if (finalResponse.discovery_blog_detail === '') {
-                     delete finalResponse.discovery_blog_detail;
-                }
-
-                if (finalResponse.discovery_channel && !finalResponse.discovery_channel.includes('other')) {
-                    delete finalResponse.discovery_other_detail;
-                } else if (finalResponse.discovery_other_detail === '') {
-                    delete finalResponse.discovery_other_detail;
-                }
-
-                if (finalResponse.favorite_point && !finalResponse.favorite_point.includes('other')) {
-                    delete finalResponse.favorite_point_other_detail;
-                } else if (finalResponse.favorite_point_other_detail === '') {
-                    delete finalResponse.favorite_point_other_detail;
-                }
-                
-                try {
-                    const allResponses = getStoredResponses();
-                    allResponses.push(finalResponse);
-                    saveResponses(allResponses);
-
-                    displayToast("설문이 기록되었습니다. 감사합니다!", "success");
-                    surveyForm.reset();
-                } catch (e) {
-                    console.error("Error saving to localStorage: ", e);
-                    displayToast("설문 기록 중 오류가 발생했습니다.", "error");
-                }
+            const response = await fetch(GOOGLE_SCRIPT_URL, {
+              method: "POST",
+              mode: "no-cors",
+              body: scriptFormData,
             });
-        }
 
-        // Download all button handler
-        const downloadAllButton = document.getElementById('downloadAllButton');
-        if (downloadAllButton) {
-            downloadAllButton.addEventListener('click', function() {
-                const allResponses = getStoredResponses();
-                if (allResponses.length === 0) {
-                    displayToast("저장된 설문 데이터가 없습니다.", "info");
-                    return;
-                }
-
-                try {
-                    const jsonData = JSON.stringify(allResponses, null, 2); // Pretty print JSON
-                    const blob = new Blob([jsonData], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'report.json';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    displayToast("모든 설문 데이터가 report.json 파일로 다운로드됩니다.", "success");
-                } catch (e) {
-                    console.error("Error creating or downloading JSON: ", e);
-                    displayToast("JSON 파일 생성 또는 다운로드 중 오류가 발생했습니다.", "error");
-                }
-            });
-        }
+            displayToast("설문이 제출되었습니다. 감사합니다!", "success");
+            surveyForm.reset();
+          } catch (e) {
+            console.error("Error submitting survey: ", e);
+            displayToast(
+              "설문 제출 중 오류가 발생했습니다. 네트워크를 확인하거나 관리자에게 문의하세요.",
+              "error"
+            );
+          } finally {
+            submitButton.disabled = false;
+            submitLoader.classList.add("hidden");
+            if (submitButtonText) submitButtonText.textContent = "설문 제출";
+          }
+        });
+      }
     </script>
-</body>
+  </body>
 </html>
